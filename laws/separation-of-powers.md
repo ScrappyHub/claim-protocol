@@ -1,0 +1,1 @@
+Producer ≠ Witness ≠ Verifier ≠ Gate.
