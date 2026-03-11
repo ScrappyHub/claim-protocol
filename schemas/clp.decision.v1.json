@@ -1,0 +1,49 @@
+{
+  "schema": "clp.object_schema.v1",
+  "object_schema": "clp.decision.v1",
+  "required": [
+    "schema",
+    "decision_type",
+    "inputs",
+    "result",
+    "producer",
+    "timestamp",
+    "payload"
+  ],
+  "optional": [
+    "signature",
+    "prev_links",
+    "meta",
+    "strength",
+    "labels",
+    "policy_ref"
+  ],
+  "field_types": {
+    "schema": "string",
+    "decision_type": "string",
+    "inputs": "array",
+    "result": "object",
+    "producer": "string",
+    "timestamp": "string",
+    "payload": "object",
+    "signature": "any",
+    "prev_links": "array",
+    "meta": "object",
+    "strength": "any",
+    "labels": "array",
+    "policy_ref": "string"
+  },
+  "identity_rule": {
+    "id_name": "DecisionId",
+    "hash": "sha256",
+    "exclude_fields": [
+      "signature"
+    ]
+  },
+  "notes": [
+    "schema must equal clp.decision.v1",
+    "decision identity follows claim-style identity exclusion in CLP v1",
+    "inputs must be an array",
+    "payload must be an object in CLP Object Law v1"
+  ]
+}
