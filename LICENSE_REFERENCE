@@ -1,0 +1,27 @@
+Claim Protocol (CLP) Reference Engine License
+
+The reference implementation contained in:
+
+/scripts
+/test_vectors
+/selftests
+
+is provided under the Constellation Reference License.
+
+You may:
+
+• read the source
+• audit the source
+• compile and run locally
+• use for research and evaluation
+
+You may NOT:
+
+• sell the reference implementation
+• run hosted claim registry services using this implementation
+• operate public Claim Protocol infrastructure without a commercial license
+• offer Claim Protocol verification as a commercial service
+
+Commercial use requires a commercial license from the author.
+
+Copyright 2026 Alec Maiatico
