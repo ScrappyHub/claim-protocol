@@ -1,0 +1,42 @@
+{
+  "schema": "clp.object_schema.v1",
+  "object_schema": "clp.claim.v1",
+  "required": [
+    "schema",
+    "claim_type",
+    "producer",
+    "timestamp",
+    "payload"
+  ],
+  "optional": [
+    "signature",
+    "prev_links",
+    "meta",
+    "strength",
+    "labels"
+  ],
+  "field_types": {
+    "schema": "string",
+    "claim_type": "string",
+    "producer": "string",
+    "timestamp": "string",
+    "payload": "object",
+    "signature": "any",
+    "prev_links": "array",
+    "meta": "object",
+    "strength": "any",
+    "labels": "array"
+  },
+  "identity_rule": {
+    "id_name": "ClaimId",
+    "hash": "sha256",
+    "exclude_fields": [
+      "signature"
+    ]
+  },
+  "notes": [
+    "schema must equal clp.claim.v1",
+    "claim_type must be namespaced and versioned",
+    "payload must be an object in CLP Object Law v1"
+  ]
+}
