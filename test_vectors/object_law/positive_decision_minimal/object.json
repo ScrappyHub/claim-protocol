@@ -1,0 +1,1 @@
+{"decision_type":"covenant.allow.v1","inputs":["52a2b139dcf0b0f44bec850dcd121d3be3092988a50a15e112c06f51b78b84fd","ee1ec699389f6fae72c032cbb7086c0c962cb4f050e515a48461a0b95f7b10c8"],"payload":{"mode":"inline_json","value":{"action":"allow"}},"producer":"unit","result":{"ok":true,"decision":"allow"},"schema":"clp.decision.v1","timestamp":"2026-03-10T00:00:00Z"}

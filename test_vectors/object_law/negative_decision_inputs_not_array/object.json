@@ -1,0 +1,1 @@
+{"decision_type":"covenant.allow.v1","inputs":"not-an-array","payload":{"mode":"inline_json","value":{"action":"allow"}},"producer":"unit","result":{"ok":true,"decision":"allow"},"schema":"clp.decision.v1","timestamp":"2026-03-10T00:00:00Z"}
