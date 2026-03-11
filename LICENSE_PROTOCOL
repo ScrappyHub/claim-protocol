@@ -1,0 +1,21 @@
+Claim Protocol (CLP) – Protocol Law License
+
+The protocol definitions contained in:
+
+/laws
+/schemas
+/reference
+docs/
+
+are licensed under the Apache License 2.0.
+
+These documents define the Claim Protocol specification and may be:
+
+• implemented
+• audited
+• extended
+• used commercially
+
+provided that the protocol identifiers and canonical hashing rules remain unmodified.
+
+Derivative protocols must not claim to be Claim Protocol (CLP) unless fully compliant with the canonical specification.
