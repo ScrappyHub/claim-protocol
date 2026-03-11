@@ -1,0 +1,41 @@
+{
+  "schema": "clp.object_schema.v1",
+  "object_schema": "clp.receipt.v1",
+  "required": [
+    "schema",
+    "receipt_type",
+    "for_claim",
+    "result",
+    "timestamp"
+  ],
+  "optional": [
+    "signature",
+    "meta",
+    "producer",
+    "inputs"
+  ],
+  "field_types": {
+    "schema": "string",
+    "receipt_type": "string",
+    "for_claim": "string",
+    "result": "object",
+    "timestamp": "string",
+    "signature": "any",
+    "meta": "object",
+    "producer": "string",
+    "inputs": "any"
+  },
+  "identity_rule": {
+    "id_name": "ReceiptId",
+    "hash": "sha256",
+    "exclude_fields": [
+      "signature"
+    ]
+  },
+  "notes": [
+    "schema must equal clp.receipt.v1",
+    "receipt_type must be namespaced and versioned",
+    "for_claim references a ClaimId",
+    "result must be an object in CLP Object Law v1"
+  ]
+}
