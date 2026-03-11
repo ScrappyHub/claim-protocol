@@ -1,0 +1,31 @@
+{
+  "schema": "clp.result_schema.v1",
+  "result_schema": "clp.verify.result.v1",
+  "required": [
+    "schema",
+    "ok",
+    "object_schema",
+    "reason_token"
+  ],
+  "optional": [
+    "object_id",
+    "payload_mode",
+    "verified_at",
+    "meta"
+  ],
+  "field_types": {
+    "schema": "string",
+    "ok": "boolean",
+    "object_schema": "string",
+    "reason_token": "string",
+    "object_id": "string",
+    "payload_mode": "string",
+    "verified_at": "string",
+    "meta": "object"
+  },
+  "notes": [
+    "schema must equal clp.verify.result.v1",
+    "reason_token must be a stable verifier token",
+    "ok is the binary verifier outcome"
+  ]
+}
