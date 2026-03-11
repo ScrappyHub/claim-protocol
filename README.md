@@ -88,3 +88,42 @@ scripts/
 test_vectors/
 docs/
 proofs/
+Current Tooling
+
+Implemented now:
+
+scripts/_lib_clp_v1.ps1
+
+scripts/clp_hash_claim_v1.ps1
+
+scripts/clp_hash_receipt_v1.ps1
+
+scripts/clp_run_test_vectors_v1.ps1
+
+scripts/_selftest_clp_v1.ps1
+
+scripts/_RUN_clp_freeze_tier0_v1.ps1
+
+Current Goal
+
+The next goal is to elevate CLP from a sealed identity core to a true Tier-0 standalone instrument by locking:
+
+object contract
+
+payload/media contract
+
+verifier contract
+
+entitlement boundary
+
+expanded conformance vectors
+
+License
+
+Apache-2.0. See LICENSE and docs/LICENSING.md.
+
+Current Truth Statement
+
+CLP identity core is sealed.
+
+CLP full standalone protocol surface is still under construction.
