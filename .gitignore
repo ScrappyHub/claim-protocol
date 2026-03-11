@@ -2,3 +2,6 @@
 *.tmp
 Thumbs.db
 .DS_Store
+
+scripts/_scratch/
+proofs/
