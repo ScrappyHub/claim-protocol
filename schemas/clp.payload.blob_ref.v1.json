@@ -1,0 +1,25 @@
+{
+  "schema": "clp.payload_schema.v1",
+  "payload_mode": "blob_ref",
+  "required": [
+    "mode",
+    "media_type",
+    "digest",
+    "length"
+  ],
+  "optional": [
+    "filename"
+  ],
+  "field_types": {
+    "mode": "string",
+    "media_type": "string",
+    "digest": "string",
+    "length": "number",
+    "filename": "string"
+  },
+  "notes": [
+    "mode must equal blob_ref",
+    "digest must begin with sha256:",
+    "length is byte length of the external blob"
+  ]
+}

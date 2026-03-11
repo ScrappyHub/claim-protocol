@@ -1,0 +1,20 @@
+{
+  "schema": "clp.payload_schema.v1",
+  "payload_mode": "inline_text",
+  "required": [
+    "mode",
+    "media_type",
+    "text"
+  ],
+  "optional": [],
+  "field_types": {
+    "mode": "string",
+    "media_type": "string",
+    "text": "string"
+  },
+  "notes": [
+    "mode must equal inline_text",
+    "text must be a string",
+    "media_type should describe the embedded text form"
+  ]
+}

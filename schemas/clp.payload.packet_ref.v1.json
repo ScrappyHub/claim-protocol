@@ -1,0 +1,23 @@
+{
+  "schema": "clp.payload_schema.v1",
+  "payload_mode": "packet_ref",
+  "required": [
+    "mode",
+    "packet_id"
+  ],
+  "optional": [
+    "manifest_digest",
+    "path"
+  ],
+  "field_types": {
+    "mode": "string",
+    "packet_id": "string",
+    "manifest_digest": "string",
+    "path": "string"
+  },
+  "notes": [
+    "mode must equal packet_ref",
+    "packet_id is required",
+    "CLP references packet content but does not redefine packet verification"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "schema": "clp.payload_schema.v1",
+  "payload_mode": "inline_json",
+  "required": [
+    "mode",
+    "value"
+  ],
+  "optional": [
+    "media_type"
+  ],
+  "field_types": {
+    "mode": "string",
+    "value": "object_or_array",
+    "media_type": "string"
+  },
+  "notes": [
+    "mode must equal inline_json",
+    "value must be a JSON object or array",
+    "media_type is optional and should usually be application/json"
+  ]
+}
