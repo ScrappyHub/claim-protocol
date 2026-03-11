@@ -7,7 +7,7 @@ param(
   [string]$ObjectJsonPath
 )
 
-$ErrorActionPreference="Stop"
+$ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 function Die([string]$m){
@@ -23,16 +23,6 @@ function EnsureLeaf([string]$p){
 function ReadTextUtf8NoBom([string]$p){
   EnsureLeaf $p
   return [System.IO.File]::ReadAllText($p,(New-Object System.Text.UTF8Encoding($false)))
-}
-
-function WriteUtf8NoBomLf([string]$Path,[string]$Text){
-  $dir = Split-Path -Parent $Path
-  if($dir -and -not (Test-Path -LiteralPath $dir -PathType Container)){
-    New-Item -ItemType Directory -Force -Path $dir | Out-Null
-  }
-  $t = $Text.Replace("`r`n","`n").Replace("`r","`n")
-  if(-not $t.EndsWith("`n")){ $t += "`n" }
-  [System.IO.File]::WriteAllText($Path,$t,(New-Object System.Text.UTF8Encoding($false)))
 }
 
 function _JsonEscape([string]$s){
@@ -65,11 +55,13 @@ function IsJsonObjectValue($v){
 function IsJsonArrayValue($v){
   if($null -eq $v){ return $false }
   if($v -is [string]){ return $false }
+  if($v -is [System.Array]){ return $true }
   if($v -is [System.Collections.IEnumerable] -and -not ($v -is [System.Collections.IDictionary])){ return $true }
   return $false
 }
 
 function HasProp($Obj,[string]$Name){
+  if($null -eq $Obj){ return $false }
   $props = @(@($Obj.PSObject.Properties))
   foreach($p in $props){
     if([string]$p.Name -eq $Name){ return $true }
@@ -214,6 +206,23 @@ function Verify-Decision($Obj){
 
 EnsureLeaf $ObjectJsonPath
 $raw = ReadTextUtf8NoBom $ObjectJsonPath
+
+# Raw-text top-level guard first.
+# This avoids PS5.1 ConvertFrom-Json weirdness around arrays and ensures
+# deterministic INVALID_TOP_LEVEL_TYPE for any non-object top-level JSON.
+$trimmed = $raw.TrimStart()
+if([string]::IsNullOrWhiteSpace($trimmed)){
+  Emit-VerifyResult -Ok $false -ObjectSchema "" -ReasonToken "INVALID_JSON" -PayloadMode ""
+  exit 0
+}
+
+$first = $trimmed.Substring(0,1)
+if($first -ne "{"){
+  if($first -eq "["){
+    Emit-VerifyResult -Ok $false -ObjectSchema "" -ReasonToken "INVALID_TOP_LEVEL_TYPE" -PayloadMode ""
+    exit 0
+  }
+}
 
 try {
   $parsed = $raw | ConvertFrom-Json
