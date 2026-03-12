@@ -39,61 +39,119 @@ function CopyTextFile([string]$Src,[string]$Dst){
   WriteUtf8NoBomLf $Dst (ReadUtf8NoBom $Src)
 }
 
-function RunAppendDirect([string]$CaseRoot,[string]$ClaimJsonPath,[string]$Actor,[string]$Timestamp,[string]$Label){
+function QuoteArg([string]$s){
+  if($null -eq $s){ return '""' }
+  if($s -match '[\s"]'){
+    return '"' + ($s -replace '"','\"') + '"'
+  }
+  return $s
+}
+
+function RunChildCapture([string]$Script,[string[]]$ArgList,[string]$StdoutPath,[string]$StderrPath){
   $PSExe = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+  if(-not (Test-Path -LiteralPath $PSExe -PathType Leaf)){ Die ("MISSING_POWERSHELL_EXE: " + $PSExe) }
+  if(-not (Test-Path -LiteralPath $Script -PathType Leaf)){ Die ("MISSING_SCRIPT: " + $Script) }
+
+  if(Test-Path -LiteralPath $StdoutPath -PathType Leaf){ Remove-Item -LiteralPath $StdoutPath -Force -ErrorAction SilentlyContinue }
+  if(Test-Path -LiteralPath $StderrPath -PathType Leaf){ Remove-Item -LiteralPath $StderrPath -Force -ErrorAction SilentlyContinue }
+
+  $allArgs = New-Object System.Collections.Generic.List[string]
+  [void]$allArgs.Add('-NoProfile')
+  [void]$allArgs.Add('-NonInteractive')
+  [void]$allArgs.Add('-ExecutionPolicy')
+  [void]$allArgs.Add('Bypass')
+  [void]$allArgs.Add('-File')
+  [void]$allArgs.Add($Script)
+  foreach($a in @($ArgList)){ [void]$allArgs.Add([string]$a) }
+
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = $PSExe
+  $psi.Arguments = (@($allArgs.ToArray()) | ForEach-Object { QuoteArg $_ }) -join ' '
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.CreateNoWindow = $true
+
+  $p = New-Object System.Diagnostics.Process
+  $p.StartInfo = $psi
+  if(-not $p.Start()){ Die ("CHILD_START_FAIL: " + $Script) }
+
+  $stdout = $p.StandardOutput.ReadToEnd()
+  $stderr = $p.StandardError.ReadToEnd()
+  $p.WaitForExit()
+  $code = [int]$p.ExitCode
+  $p.Dispose()
+
+  WriteUtf8NoBomLf $StdoutPath ($stdout + "")
+  WriteUtf8NoBomLf $StderrPath ($stderr + "")
+
+  return @{
+    ExitCode = $code
+    Stdout   = $stdout
+    Stderr   = $stderr
+  }
+}
+
+function RunAppendDirect([string]$CaseRoot,[string]$ClaimJsonPath,[string]$Actor,[string]$Timestamp,[string]$Label){
   $Script = Join-Path $RepoRoot "scripts\clp_append_local_pledge_v1.ps1"
   $stdout = Join-Path $CaseRoot ($Label + "_stdout.log")
   $stderr = Join-Path $CaseRoot ($Label + "_stderr.log")
-  if(Test-Path -LiteralPath $stdout -PathType Leaf){ Remove-Item -LiteralPath $stdout -Force -ErrorAction SilentlyContinue }
-  if(Test-Path -LiteralPath $stderr -PathType Leaf){ Remove-Item -LiteralPath $stderr -Force -ErrorAction SilentlyContinue }
-  & $PSExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $Script -RepoRoot $CaseRoot -ClaimJsonPath $ClaimJsonPath -Actor $Actor -Timestamp $Timestamp 1> $stdout 2> $stderr
-  $code = $LASTEXITCODE
-  $out = ""
-  $err = ""
-  if(Test-Path -LiteralPath $stdout -PathType Leaf){ $out = ReadUtf8NoBom $stdout }
-  if(Test-Path -LiteralPath $stderr -PathType Leaf){ $err = ReadUtf8NoBom $stderr }
-  if($code -ne 0){ Die ("FAIL: " + $Label + "`nSTDERR:`n" + $err + "`nSTDOUT:`n" + $out) }
+  $r = RunChildCapture $Script @(
+    '-RepoRoot', $CaseRoot,
+    '-ClaimJsonPath', $ClaimJsonPath,
+    '-Actor', $Actor,
+    '-Timestamp', $Timestamp
+  ) $stdout $stderr
+  if($r.ExitCode -ne 0){
+    Die ("FAIL: " + $Label + "`nSTDERR:`n" + $r.Stderr + "`nSTDOUT:`n" + $r.Stdout)
+  }
 }
 
 function RunVerifyDirectPass([string]$CaseRoot,[string]$Label){
-  $PSExe = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
   $Script = Join-Path $RepoRoot "scripts\clp_verify_local_pledge_v1.ps1"
   $stdout = Join-Path $CaseRoot ($Label + "_stdout.log")
   $stderr = Join-Path $CaseRoot ($Label + "_stderr.log")
-  if(Test-Path -LiteralPath $stdout -PathType Leaf){ Remove-Item -LiteralPath $stdout -Force -ErrorAction SilentlyContinue }
-  if(Test-Path -LiteralPath $stderr -PathType Leaf){ Remove-Item -LiteralPath $stderr -Force -ErrorAction SilentlyContinue }
-  & $PSExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $Script -RepoRoot $CaseRoot 1> $stdout 2> $stderr
-  $code = $LASTEXITCODE
-  $out = ""
-  $err = ""
-  if(Test-Path -LiteralPath $stdout -PathType Leaf){ $out = ReadUtf8NoBom $stdout }
-  if(Test-Path -LiteralPath $stderr -PathType Leaf){ $err = ReadUtf8NoBom $stderr }
-  if($code -ne 0){ Die ("FAIL: " + $Label + "`nSTDERR:`n" + $err + "`nSTDOUT:`n" + $out) }
+  $r = RunChildCapture $Script @(
+    '-RepoRoot', $CaseRoot
+  ) $stdout $stderr
+  if($r.ExitCode -ne 0){
+    Die ("FAIL: " + $Label + "`nSTDERR:`n" + $r.Stderr + "`nSTDOUT:`n" + $r.Stdout)
+  }
 }
 
-function RunVerifyDirectFail([string]$CaseRoot,[string]$Label){
-  $PSExe = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+function RunVerifyDirectFail([string]$CaseRoot,[string]$Label,[string]$ExpectedToken){
   $Script = Join-Path $RepoRoot "scripts\clp_verify_local_pledge_v1.ps1"
   $stdout = Join-Path $CaseRoot ($Label + "_stdout.log")
   $stderr = Join-Path $CaseRoot ($Label + "_stderr.log")
-  if(Test-Path -LiteralPath $stdout -PathType Leaf){ Remove-Item -LiteralPath $stdout -Force -ErrorAction SilentlyContinue }
-  if(Test-Path -LiteralPath $stderr -PathType Leaf){ Remove-Item -LiteralPath $stderr -Force -ErrorAction SilentlyContinue }
-  & $PSExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $Script -RepoRoot $CaseRoot 1> $stdout 2> $stderr
-  $code = $LASTEXITCODE
-  if($code -eq 0){ Die ("FAIL: " + $Label + "_expected_fail_but_passed") }
+  $r = RunChildCapture $Script @(
+    '-RepoRoot', $CaseRoot
+  ) $stdout $stderr
+
+  if($r.ExitCode -eq 0){
+    Die ("FAIL: " + $Label + "_expected_fail_but_passed")
+  }
+
+  $combined = (($r.Stdout + "`n" + $r.Stderr) -replace "`r","")
+  if($combined.IndexOf($ExpectedToken,[System.StringComparison]::Ordinal) -lt 0){
+    Die ("FAIL: " + $Label + "_missing_expected_token: " + $ExpectedToken + "`nSTDERR:`n" + $r.Stderr + "`nSTDOUT:`n" + $r.Stdout)
+  }
 }
 
 $AppendScript = Join-Path $RepoRoot "scripts\clp_append_local_pledge_v1.ps1"
 $VerifyScript = Join-Path $RepoRoot "scripts\clp_verify_local_pledge_v1.ps1"
 $Claim1 = Join-Path $RepoRoot "test_vectors\minimal-claim\claim.json"
 $Claim2 = Join-Path $RepoRoot "test_vectors\local_pledge\claim2.json"
+
 ParseGateFile $AppendScript
 ParseGateFile $VerifyScript
+
 EnsureDir (Join-Path $RepoRoot "test_vectors\local_pledge")
 WriteUtf8NoBomLf $Claim2 '{"claim_type":"core.commit.v1","payload":{"mode":"inline_json","value":{"x":"2"}},"producer":"unit","schema":"clp.claim.v1","timestamp":"2026-03-10T00:00:01Z"}'
 
 $WorkRoot = Join-Path $RepoRoot "proofs\local_pledge_vector_work"
-if(Test-Path -LiteralPath $WorkRoot -PathType Container){ Remove-Item -LiteralPath $WorkRoot -Recurse -Force -ErrorAction Stop -Confirm:$false }
+if(Test-Path -LiteralPath $WorkRoot -PathType Container){
+  Remove-Item -LiteralPath $WorkRoot -Recurse -Force -ErrorAction Stop -Confirm:$false
+}
 EnsureDir $WorkRoot
 
 $Case1 = Join-Path $WorkRoot "positive_append_first_entry"
@@ -138,7 +196,7 @@ $Obj4 = $Lines4[1] | ConvertFrom-Json
 $Obj4.previous_entry_hash = "BADHASH"
 $Lines4[1] = ($Obj4 | ConvertTo-Json -Compress)
 WriteUtf8NoBomLf $Ledger4 ((@($Lines4) -join "`n") + "`n")
-RunVerifyDirectFail $Case4 "negative_previous_entry_hash_mismatch"
+RunVerifyDirectFail $Case4 "negative_previous_entry_hash_mismatch" "PREVIOUS_ENTRY_HASH_MISMATCH"
 Write-Host "PASS: negative_previous_entry_hash_mismatch" -ForegroundColor Green
 
 $Case5 = Join-Path $WorkRoot "negative_entry_hash_mismatch"
@@ -152,7 +210,7 @@ $Obj5 = $Lines5[0] | ConvertFrom-Json
 $Obj5.entry_hash = "BADHASH"
 $Lines5[0] = ($Obj5 | ConvertTo-Json -Compress)
 WriteUtf8NoBomLf $Ledger5 ((@($Lines5) -join "`n") + "`n")
-RunVerifyDirectFail $Case5 "negative_entry_hash_mismatch"
+RunVerifyDirectFail $Case5 "negative_entry_hash_mismatch" "ENTRY_HASH_MISMATCH"
 Write-Host "PASS: negative_entry_hash_mismatch" -ForegroundColor Green
 
 Write-Host "LOCAL_PLEDGE_VECTOR_OK: pass=5 fail=0" -ForegroundColor Green
