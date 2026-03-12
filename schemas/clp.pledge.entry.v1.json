@@ -1,0 +1,1 @@
+{"notes":["Append-only local pledge entry for Claim Protocol.","entry_hash is excluded from entry-hash derivation.","previous_entry_hash is empty string for first entry."],"required":["schema","event_type","actor","claim_id","object_sha256","previous_entry_hash","timestamp","entry_hash"],"schema":"clp.pledge.entry.v1","signature_excluded_fields":[]}
