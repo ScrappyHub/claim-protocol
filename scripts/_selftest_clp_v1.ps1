@@ -129,6 +129,9 @@ $LibPath = Join-Path $ScriptsDir "_lib_clp_v1.ps1"
 $HashClaim = Join-Path $ScriptsDir "clp_hash_claim_v1.ps1"
 $HashRcpt = Join-Path $ScriptsDir "clp_hash_receipt_v1.ps1"
 $RunTV = Join-Path $ScriptsDir "clp_run_test_vectors_v1.ps1"
+$RunObjectLaw = Join-Path $ScriptsDir "clp_run_object_law_vectors_v1.ps1"
+$RunMediaStorage = Join-Path $ScriptsDir "clp_run_media_storage_vectors_v1.ps1"
+$RunVerifier = Join-Path $ScriptsDir "clp_run_verifier_vectors_v1.ps1"
 $AppendPledge = Join-Path $ScriptsDir "clp_append_local_pledge_v1.ps1"
 $VerifyPledge = Join-Path $ScriptsDir "clp_verify_local_pledge_v1.ps1"
 $RunPledgeVectors = Join-Path $ScriptsDir "clp_run_local_pledge_vectors_v1.ps1"
@@ -143,6 +146,9 @@ ParseGateFile $LibPath
 ParseGateFile $HashClaim
 ParseGateFile $HashRcpt
 ParseGateFile $RunTV
+ParseGateFile $RunObjectLaw
+ParseGateFile $RunMediaStorage
+ParseGateFile $RunVerifier
 ParseGateFile $AppendPledge
 ParseGateFile $VerifyPledge
 ParseGateFile $RunPledgeVectors
@@ -153,6 +159,9 @@ $inputs = @(
   $HashClaim,
   $HashRcpt,
   $RunTV,
+  $RunObjectLaw,
+  $RunMediaStorage,
+  $RunVerifier,
   $AppendPledge,
   $VerifyPledge,
   $RunPledgeVectors,
@@ -161,7 +170,30 @@ $inputs = @(
   $MinClaimExp,
   $MinRcptJson,
   $MinRcptExp,
-  $Claim2
+  $Claim2,
+  (Join-Path $TVDir "object_law\positive_claim_minimal\object.json"),
+  (Join-Path $TVDir "object_law\positive_receipt_minimal\object.json"),
+  (Join-Path $TVDir "object_law\positive_decision_minimal\object.json"),
+  (Join-Path $TVDir "object_law\negative_missing_schema\object.json"),
+  (Join-Path $TVDir "object_law\negative_claim_payload_not_object\object.json"),
+  (Join-Path $TVDir "object_law\negative_decision_inputs_not_array\object.json"),
+  (Join-Path $TVDir "media_storage\positive_inline_json\payload.json"),
+  (Join-Path $TVDir "media_storage\positive_inline_text\payload.json"),
+  (Join-Path $TVDir "media_storage\positive_blob_ref\payload.json"),
+  (Join-Path $TVDir "media_storage\positive_packet_ref\payload.json"),
+  (Join-Path $TVDir "media_storage\negative_bad_mode\payload.json"),
+  (Join-Path $TVDir "media_storage\negative_blob_ref_missing_digest\payload.json"),
+  (Join-Path $TVDir "media_storage\negative_packet_ref_missing_packet_id\payload.json"),
+  (Join-Path $TVDir "verifier\positive_claim_valid\object.json"),
+  (Join-Path $TVDir "verifier\positive_receipt_valid\object.json"),
+  (Join-Path $TVDir "verifier\positive_decision_valid\object.json"),
+  (Join-Path $TVDir "verifier\positive_blob_ref_metadata_valid\object.json"),
+  (Join-Path $TVDir "verifier\negative_missing_schema\object.json"),
+  (Join-Path $TVDir "verifier\negative_bad_payload_mode\object.json"),
+  (Join-Path $TVDir "verifier\negative_blob_ref_missing_digest\object.json"),
+  (Join-Path $TVDir "verifier\negative_decision_inputs_not_array\object.json"),
+  (Join-Path $TVDir "verifier\negative_unsupported_schema\object.json"),
+  (Join-Path $TVDir "verifier\negative_top_level_not_object\object.json")
 )
 $rootObj = ComputeInputsRootHash $RepoRoot $inputs
 $root = [string]$rootObj.Root
@@ -195,14 +227,35 @@ if($r3.ExitCode -ne 0){ Die ("SELFTEST_FAIL_RUN_VECTORS_EXIT: " + $r3.ExitCode +
 $runTvOut = ($r3.Stdout -replace "`r","").Trim()
 if($runTvOut -notmatch "TEST_VECTORS_OK:"){ Die ("SELFTEST_FAIL_RUN_VECTORS_TOKEN_MISSING") }
 
-$std4 = Join-Path $RcptDir "04_run_local_pledge_vectors_stdout.log"
-$err4 = Join-Path $RcptDir "04_run_local_pledge_vectors_stderr.log"
-$r4 = RunChildCapture $PSExe $RunPledgeVectors @{ RepoRoot = $RepoRoot } $std4 $err4
-if($r4.ExitCode -ne 0){ Die ("SELFTEST_FAIL_RUN_LOCAL_PLEDGE_VECTORS_EXIT: " + $r4.ExitCode + "`n" + $r4.Stderr) }
-$runPledgeOut = ($r4.Stdout -replace "`r","").Trim()
+$std4 = Join-Path $RcptDir "04_run_object_law_vectors_stdout.log"
+$err4 = Join-Path $RcptDir "04_run_object_law_vectors_stderr.log"
+$r4 = RunChildCapture $PSExe $RunObjectLaw @{ RepoRoot = $RepoRoot } $std4 $err4
+if($r4.ExitCode -ne 0){ Die ("SELFTEST_FAIL_RUN_OBJECT_LAW_EXIT: " + $r4.ExitCode + "`n" + $r4.Stderr) }
+$runObjectOut = ($r4.Stdout -replace "`r","").Trim()
+if($runObjectOut -notmatch "OBJECT_LAW_VECTORS_OK: pass=6 fail=0"){ Die ("SELFTEST_FAIL_RUN_OBJECT_LAW_TOKEN_MISSING") }
+
+$std5 = Join-Path $RcptDir "05_run_media_storage_vectors_stdout.log"
+$err5 = Join-Path $RcptDir "05_run_media_storage_vectors_stderr.log"
+$r5 = RunChildCapture $PSExe $RunMediaStorage @{ RepoRoot = $RepoRoot } $std5 $err5
+if($r5.ExitCode -ne 0){ Die ("SELFTEST_FAIL_RUN_MEDIA_STORAGE_EXIT: " + $r5.ExitCode + "`n" + $r5.Stderr) }
+$runMediaOut = ($r5.Stdout -replace "`r","").Trim()
+if($runMediaOut -notmatch "MEDIA_STORAGE_VECTORS_OK: pass=7 fail=0"){ Die ("SELFTEST_FAIL_RUN_MEDIA_STORAGE_TOKEN_MISSING") }
+
+$std6 = Join-Path $RcptDir "06_run_verifier_vectors_stdout.log"
+$err6 = Join-Path $RcptDir "06_run_verifier_vectors_stderr.log"
+$r6 = RunChildCapture $PSExe $RunVerifier @{ RepoRoot = $RepoRoot } $std6 $err6
+if($r6.ExitCode -ne 0){ Die ("SELFTEST_FAIL_RUN_VERIFIER_EXIT: " + $r6.ExitCode + "`n" + $r6.Stderr) }
+$runVerifierOut = ($r6.Stdout -replace "`r","").Trim()
+if($runVerifierOut -notmatch "VERIFIER_VECTORS_OK: pass=10 fail=0"){ Die ("SELFTEST_FAIL_RUN_VERIFIER_TOKEN_MISSING") }
+
+$std7 = Join-Path $RcptDir "07_run_local_pledge_vectors_stdout.log"
+$err7 = Join-Path $RcptDir "07_run_local_pledge_vectors_stderr.log"
+$r7 = RunChildCapture $PSExe $RunPledgeVectors @{ RepoRoot = $RepoRoot } $std7 $err7
+if($r7.ExitCode -ne 0){ Die ("SELFTEST_FAIL_RUN_LOCAL_PLEDGE_VECTORS_EXIT: " + $r7.ExitCode + "`n" + $r7.Stderr) }
+$runPledgeOut = ($r7.Stdout -replace "`r","").Trim()
 if($runPledgeOut -notmatch "LOCAL_PLEDGE_VECTOR_OK: pass=5 fail=0"){ Die ("SELFTEST_FAIL_RUN_LOCAL_PLEDGE_TOKEN_MISSING") }
 
-$json = '{"schema":"clp.selftest.result.v1","ok":true,"root_hash":"' + $root + '","claim_id":"' + $gotClaim + '","receipt_id":"' + $gotRcpt + '","local_pledge_vectors_ok":true}'
+$json = '{"schema":"clp.selftest.result.v1","ok":true,"root_hash":"' + $root + '","claim_id":"' + $gotClaim + '","receipt_id":"' + $gotRcpt + '","object_law_vectors_ok":true,"media_storage_vectors_ok":true,"verifier_vectors_ok":true,"local_pledge_vectors_ok":true}'
 WriteUtf8NoBomLf (Join-Path $RcptDir "result.json") $json
 
 $files = @(
@@ -214,8 +267,14 @@ $files = @(
   "02_hash_receipt_stderr.log",
   "03_run_vectors_stdout.log",
   "03_run_vectors_stderr.log",
-  "04_run_local_pledge_vectors_stdout.log",
-  "04_run_local_pledge_vectors_stderr.log",
+  "04_run_object_law_vectors_stdout.log",
+  "04_run_object_law_vectors_stderr.log",
+  "05_run_media_storage_vectors_stdout.log",
+  "05_run_media_storage_vectors_stderr.log",
+  "06_run_verifier_vectors_stdout.log",
+  "06_run_verifier_vectors_stderr.log",
+  "07_run_local_pledge_vectors_stdout.log",
+  "07_run_local_pledge_vectors_stderr.log",
   "result.json"
 )
 $lines = New-Object System.Collections.Generic.List[string]

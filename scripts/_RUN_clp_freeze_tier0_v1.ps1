@@ -19,11 +19,6 @@ function WriteUtf8NoBomLf([string]$Path,[string]$Text){
   [System.IO.File]::WriteAllText($Path,$t,(New-Object System.Text.UTF8Encoding($false)))
 }
 
-function ReadUtf8NoBom([string]$Path){
-  if(-not (Test-Path -LiteralPath $Path -PathType Leaf)){ Die ("MISSING_FILE: " + $Path) }
-  return [System.IO.File]::ReadAllText($Path,(New-Object System.Text.UTF8Encoding($false)))
-}
-
 function ParseGateFile([string]$Path){
   if(-not (Test-Path -LiteralPath $Path -PathType Leaf)){ Die ("PARSE_GATE_MISSING: " + $Path) }
   $tokens = $null
