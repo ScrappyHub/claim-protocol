@@ -1,44 +1,36 @@
-param(
-  [Parameter(Mandatory=$true)]
-  [ValidateNotNullOrEmpty()]
-  [string]$RepoRoot
-)
-
-$ErrorActionPreference="Stop"
+param([Parameter(Mandatory=$true)][ValidateNotNullOrEmpty()][string]$RepoRoot)
+$ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 function Die([string]$m){ throw $m }
 
-function EnsureDir([string]$p){
-  if([string]::IsNullOrWhiteSpace($p)){ return }
-  if(-not (Test-Path -LiteralPath $p -PathType Container)){
-    New-Item -ItemType Directory -Force -Path $p | Out-Null
+function EnsureDir([string]$Path){
+  if([string]::IsNullOrWhiteSpace($Path)){ return }
+  if(-not (Test-Path -LiteralPath $Path -PathType Container)){
+    New-Item -ItemType Directory -Force -Path $Path | Out-Null
   }
 }
 
-function ReadTextUtf8NoBom([string]$p){
-  if(-not (Test-Path -LiteralPath $p -PathType Leaf)){ Die ("MISSING_FILE: " + $p) }
-  $enc = New-Object System.Text.UTF8Encoding($false)
-  return [System.IO.File]::ReadAllText($p,$enc)
+function ReadTextUtf8NoBom([string]$Path){
+  if(-not (Test-Path -LiteralPath $Path -PathType Leaf)){ Die ("MISSING_FILE: " + $Path) }
+  return [System.IO.File]::ReadAllText($Path,(New-Object System.Text.UTF8Encoding($false)))
 }
 
 function WriteUtf8NoBomLf([string]$Path,[string]$Text){
   $dir = Split-Path -Parent $Path
   if($dir -and -not (Test-Path -LiteralPath $dir -PathType Container)){ EnsureDir $dir }
-  $t = $Text
-  $t = $t.Replace("`r`n","`n").Replace("`r","`n")
-  if(-not $t.EndsWith("`n")){ $t = $t + "`n" }
-  $enc = New-Object System.Text.UTF8Encoding($false)
-  [System.IO.File]::WriteAllText($Path,$t,$enc)
+  $t = $Text.Replace("`r`n","`n").Replace("`r","`n")
+  if(-not $t.EndsWith("`n")){ $t += "`n" }
+  [System.IO.File]::WriteAllText($Path,$t,(New-Object System.Text.UTF8Encoding($false)))
 }
 
 function ParseGateFile([string]$Path){
   if(-not (Test-Path -LiteralPath $Path -PathType Leaf)){ Die ("PARSE_GATE_MISSING: " + $Path) }
-  $tokens=$null; $errs=$null
+  $tokens = $null
+  $errs = $null
   [void][System.Management.Automation.Language.Parser]::ParseFile($Path,[ref]$tokens,[ref]$errs)
-  $e = @(@($errs))
-  if($e.Count -gt 0){
-    $msg = ($e | ForEach-Object { $_.ToString() }) -join "`n"
+  if($errs -and $errs.Count -gt 0){
+    $msg = ($errs | ForEach-Object { $_.ToString() }) -join "`n"
     Die ("PARSE_GATE_FAIL: " + $Path + "`n" + $msg)
   }
 }
@@ -46,19 +38,20 @@ function ParseGateFile([string]$Path){
 function Sha256HexBytes([byte[]]$Bytes){
   if($null -eq $Bytes){ $Bytes = @() }
   $sha = [System.Security.Cryptography.SHA256]::Create()
-  try {
+  try{
     $h = $sha.ComputeHash([byte[]]$Bytes)
     $sb = New-Object System.Text.StringBuilder
     $i = 0
     while($i -lt $h.Length){ [void]$sb.Append($h[$i].ToString("x2")); $i++ }
     return $sb.ToString()
-  } finally { $sha.Dispose() }
+  } finally {
+    $sha.Dispose()
+  }
 }
 
 function Sha256HexFile([string]$Path){
   if(-not (Test-Path -LiteralPath $Path -PathType Leaf)){ Die ("MISSING_FILE: " + $Path) }
-  $b = [System.IO.File]::ReadAllBytes($Path)
-  return (Sha256HexBytes $b)
+  return (Sha256HexBytes ([System.IO.File]::ReadAllBytes($Path)))
 }
 
 function RelPath([string]$Base,[string]$Full){
@@ -67,7 +60,8 @@ function RelPath([string]$Base,[string]$Full){
   if($f.Length -lt $b.Length){ Die ("REL_PATH_FAIL: base longer than full: " + $Base + " :: " + $Full) }
   if($f.Substring(0,$b.Length).ToLowerInvariant() -ne $b.ToLowerInvariant()){ Die ("REL_PATH_FAIL: file not under base: " + $Full) }
   $rel = $f.Substring($b.Length).TrimStart("\","/")
-  return (($rel -replace "\\","/"))
+  $rel = ($rel -replace "\\","/")
+  return $rel
 }
 
 function ComputeInputsRootHash([string]$Base,[string[]]$Paths){
@@ -80,127 +74,137 @@ function ComputeInputsRootHash([string]$Base,[string[]]$Paths){
   }
   $sorted = @($rows.ToArray() | Sort-Object)
   $txt = (@($sorted) -join "`n") + "`n"
-  $enc = New-Object System.Text.UTF8Encoding($false)
-  $root = Sha256HexBytes ($enc.GetBytes($txt))
+  $root = Sha256HexBytes ((New-Object System.Text.UTF8Encoding($false)).GetBytes($txt))
   return @{ Root = $root; ManifestText = $txt }
+}
+
+function QuoteArg([string]$s){
+  if($null -eq $s){ return '""' }
+  if($s -match '[\s"`]'){
+    return '"' + ($s -replace '"','\"') + '"'
+  }
+  return $s
 }
 
 function RunChildCapture([string]$PSExe,[string]$ScriptPath,[hashtable]$ArgMap,[string]$OutStd,[string]$OutErr){
   if(-not (Test-Path -LiteralPath $PSExe -PathType Leaf)){ Die ("MISSING_POWERSHELL_EXE: " + $PSExe) }
   if(-not (Test-Path -LiteralPath $ScriptPath -PathType Leaf)){ Die ("MISSING_SCRIPT: " + $ScriptPath) }
-  $args = New-Object System.Collections.Generic.List[string]
-  [void]$args.Add("-NoProfile")
-  [void]$args.Add("-NonInteractive")
-  [void]$args.Add("-ExecutionPolicy")
-  [void]$args.Add("Bypass")
-  [void]$args.Add("-File")
-  [void]$args.Add($ScriptPath)
+  $argList = New-Object System.Collections.Generic.List[string]
+  [void]$argList.Add("-NoProfile")
+  [void]$argList.Add("-NonInteractive")
+  [void]$argList.Add("-ExecutionPolicy")
+  [void]$argList.Add("Bypass")
+  [void]$argList.Add("-File")
+  [void]$argList.Add($ScriptPath)
   $keys = @(@($ArgMap.Keys) | Sort-Object)
   foreach($k in $keys){
-    [void]$args.Add("-" + [string]$k)
-    [void]$args.Add([string]$ArgMap[$k])
+    [void]$argList.Add("-" + [string]$k)
+    [void]$argList.Add([string]$ArgMap[$k])
   }
-  EnsureDir (Split-Path -Parent $OutStd)
-  EnsureDir (Split-Path -Parent $OutErr)
-  $p = Start-Process -FilePath $PSExe -ArgumentList @($args.ToArray()) -Wait -PassThru -NoNewWindow -RedirectStandardOutput $OutStd -RedirectStandardError $OutErr
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = $PSExe
+  $psi.Arguments = (@($argList.ToArray()) | ForEach-Object { QuoteArg $_ }) -join " "
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.CreateNoWindow = $true
+  $p = New-Object System.Diagnostics.Process
+  $p.StartInfo = $psi
+  if(-not $p.Start()){ Die ("CHILD_START_FAIL: " + $ScriptPath) }
+  $stdout = $p.StandardOutput.ReadToEnd()
+  $stderr = $p.StandardError.ReadToEnd()
+  $p.WaitForExit()
   $code = [int]$p.ExitCode
-  $stdout = (ReadTextUtf8NoBom $OutStd)
-  $stderr = (ReadTextUtf8NoBom $OutErr)
+  $p.Dispose()
+  WriteUtf8NoBomLf $OutStd ($stdout + "")
+  WriteUtf8NoBomLf $OutErr ($stderr + "")
   return @{ ExitCode = $code; Stdout = $stdout; Stderr = $stderr }
 }
 
-# -------------------------
-# Validate repo + paths
-# -------------------------
 if(-not (Test-Path -LiteralPath $RepoRoot -PathType Container)){ Die ("MISSING_REPOROOT: " + $RepoRoot) }
 $PSExe = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
 $ScriptsDir = Join-Path $RepoRoot "scripts"
-$TVDir      = Join-Path $RepoRoot "test_vectors"
-$LibPath    = Join-Path $ScriptsDir "_lib_clp_v1.ps1"
-$HashClaim  = Join-Path $ScriptsDir "clp_hash_claim_v1.ps1"
-$HashRcpt   = Join-Path $ScriptsDir "clp_hash_receipt_v1.ps1"
-$RunTV      = Join-Path $ScriptsDir "clp_run_test_vectors_v1.ps1"
-$SelfPath   = $PSCommandPath
+$TVDir = Join-Path $RepoRoot "test_vectors"
+$LibPath = Join-Path $ScriptsDir "_lib_clp_v1.ps1"
+$HashClaim = Join-Path $ScriptsDir "clp_hash_claim_v1.ps1"
+$HashRcpt = Join-Path $ScriptsDir "clp_hash_receipt_v1.ps1"
+$RunTV = Join-Path $ScriptsDir "clp_run_test_vectors_v1.ps1"
+$AppendPledge = Join-Path $ScriptsDir "clp_append_local_pledge_v1.ps1"
+$VerifyPledge = Join-Path $ScriptsDir "clp_verify_local_pledge_v1.ps1"
+$RunPledgeVectors = Join-Path $ScriptsDir "clp_run_local_pledge_vectors_v1.ps1"
+$SelfPath = $PSCommandPath
 $MinClaimJson = Join-Path $TVDir "minimal-claim\claim.json"
-$MinClaimExp  = Join-Path $TVDir "minimal-claim\expected_claim_id.txt"
-$MinRcptJson  = Join-Path $TVDir "minimal-receipt\receipt.json"
-$MinRcptExp   = Join-Path $TVDir "minimal-receipt\expected_receipt_id.txt"
+$MinClaimExp = Join-Path $TVDir "minimal-claim\expected_claim_id.txt"
+$MinRcptJson = Join-Path $TVDir "minimal-receipt\receipt.json"
+$MinRcptExp = Join-Path $TVDir "minimal-receipt\expected_receipt_id.txt"
+$Claim2 = Join-Path $TVDir "local_pledge\claim2.json"
 
-# -------------------------
-# Parse-gate required scripts
-# -------------------------
 ParseGateFile $LibPath
 ParseGateFile $HashClaim
 ParseGateFile $HashRcpt
 ParseGateFile $RunTV
+ParseGateFile $AppendPledge
+ParseGateFile $VerifyPledge
+ParseGateFile $RunPledgeVectors
 ParseGateFile $SelfPath
 
-# -------------------------
-# Deterministic receipt dir root hash over inputs
-# -------------------------
 $inputs = @(
-  $LibPath, $HashClaim, $HashRcpt, $RunTV, $SelfPath,
-  $MinClaimJson, $MinClaimExp, $MinRcptJson, $MinRcptExp
+  $LibPath,
+  $HashClaim,
+  $HashRcpt,
+  $RunTV,
+  $AppendPledge,
+  $VerifyPledge,
+  $RunPledgeVectors,
+  $SelfPath,
+  $MinClaimJson,
+  $MinClaimExp,
+  $MinRcptJson,
+  $MinRcptExp,
+  $Claim2
 )
 $rootObj = ComputeInputsRootHash $RepoRoot $inputs
 $root = [string]$rootObj.Root
 $manifestText = [string]$rootObj.ManifestText
 $RcptBase = Join-Path $RepoRoot "proofs\receipts\clp_selftest"
-$RcptDir  = Join-Path $RcptBase $root
+$RcptDir = Join-Path $RcptBase $root
 EnsureDir $RcptDir
 WriteUtf8NoBomLf (Join-Path $RcptDir "inputs_manifest.txt") $manifestText
-WriteUtf8NoBomLf (Join-Path $RcptDir "inputs_root_hash.txt") ($root + "`n")
+WriteUtf8NoBomLf (Join-Path $RcptDir "inputs_root_hash.txt") $root
 
-# -------------------------
-# 1) Hash minimal claim and compare to expected
-# -------------------------
 $std1 = Join-Path $RcptDir "01_hash_claim_stdout.log"
 $err1 = Join-Path $RcptDir "01_hash_claim_stderr.log"
-$r1 = RunChildCapture $PSExe $HashClaim @{ RepoRoot=$RepoRoot; ClaimJsonPath=$MinClaimJson } $std1 $err1
+$r1 = RunChildCapture $PSExe $HashClaim @{ RepoRoot = $RepoRoot; ClaimJsonPath = $MinClaimJson } $std1 $err1
 if($r1.ExitCode -ne 0){ Die ("SELFTEST_FAIL_HASH_CLAIM_EXIT: " + $r1.ExitCode + "`n" + $r1.Stderr) }
-$gotClaim = (($r1.Stdout -replace "`r","").Trim())
-$wantClaim = ((ReadTextUtf8NoBom $MinClaimExp).Trim())
+$gotClaim = ($r1.Stdout -replace "`r","").Trim()
+$wantClaim = (ReadTextUtf8NoBom $MinClaimExp).Trim()
 if($wantClaim -ne $gotClaim){ Die ("SELFTEST_FAIL_HASH_CLAIM_MISMATCH: want=" + $wantClaim + " got=" + $gotClaim) }
 
-# -------------------------
-# 2) Hash minimal receipt and compare to expected
-# -------------------------
 $std2 = Join-Path $RcptDir "02_hash_receipt_stdout.log"
 $err2 = Join-Path $RcptDir "02_hash_receipt_stderr.log"
-$r2 = RunChildCapture $PSExe $HashRcpt @{ RepoRoot=$RepoRoot; ReceiptJsonPath=$MinRcptJson } $std2 $err2
+$r2 = RunChildCapture $PSExe $HashRcpt @{ RepoRoot = $RepoRoot; ReceiptJsonPath = $MinRcptJson } $std2 $err2
 if($r2.ExitCode -ne 0){ Die ("SELFTEST_FAIL_HASH_RECEIPT_EXIT: " + $r2.ExitCode + "`n" + $r2.Stderr) }
-$gotRcpt = (($r2.Stdout -replace "`r","").Trim())
-$wantRcpt = ((ReadTextUtf8NoBom $MinRcptExp).Trim())
+$gotRcpt = ($r2.Stdout -replace "`r","").Trim()
+$wantRcpt = (ReadTextUtf8NoBom $MinRcptExp).Trim()
 if($wantRcpt -ne $gotRcpt){ Die ("SELFTEST_FAIL_HASH_RECEIPT_MISMATCH: want=" + $wantRcpt + " got=" + $gotRcpt) }
 
-# -------------------------
-# 3) Run the test-vector runner (must be GREEN)
-# -------------------------
 $std3 = Join-Path $RcptDir "03_run_vectors_stdout.log"
 $err3 = Join-Path $RcptDir "03_run_vectors_stderr.log"
-$r3 = RunChildCapture $PSExe $RunTV @{ RepoRoot=$RepoRoot } $std3 $err3
+$r3 = RunChildCapture $PSExe $RunTV @{ RepoRoot = $RepoRoot } $std3 $err3
 if($r3.ExitCode -ne 0){ Die ("SELFTEST_FAIL_RUN_VECTORS_EXIT: " + $r3.ExitCode + "`n" + $r3.Stderr) }
+$runTvOut = ($r3.Stdout -replace "`r","").Trim()
+if($runTvOut -notmatch "TEST_VECTORS_OK:"){ Die ("SELFTEST_FAIL_RUN_VECTORS_TOKEN_MISSING") }
 
-# -------------------------
-# Emit result.json
-# -------------------------
-$resultObj = @{ schema="clp.selftest.result.v1"; ok=$true; root_hash=$root; claim_id=$gotClaim; receipt_id=$gotRcpt }
-try {
-  . $LibPath
-  if(Get-Command -Name WriteCanonJson -ErrorAction SilentlyContinue){
-    WriteCanonJson (Join-Path $RcptDir "result.json") $resultObj
-  } else {
-    $json = ('{"schema":"clp.selftest.result.v1","ok":true,"root_hash":"' + $root + '","claim_id":"' + $gotClaim + '","receipt_id":"' + $gotRcpt + '"}')
-    WriteUtf8NoBomLf (Join-Path $RcptDir "result.json") ($json + "`n")
-  }
-} catch {
-  $json = ('{"schema":"clp.selftest.result.v1","ok":true,"root_hash":"' + $root + '","claim_id":"' + $gotClaim + '","receipt_id":"' + $gotRcpt + '"}')
-  WriteUtf8NoBomLf (Join-Path $RcptDir "result.json") ($json + "`n")
-}
+$std4 = Join-Path $RcptDir "04_run_local_pledge_vectors_stdout.log"
+$err4 = Join-Path $RcptDir "04_run_local_pledge_vectors_stderr.log"
+$r4 = RunChildCapture $PSExe $RunPledgeVectors @{ RepoRoot = $RepoRoot } $std4 $err4
+if($r4.ExitCode -ne 0){ Die ("SELFTEST_FAIL_RUN_LOCAL_PLEDGE_VECTORS_EXIT: " + $r4.ExitCode + "`n" + $r4.Stderr) }
+$runPledgeOut = ($r4.Stdout -replace "`r","").Trim()
+if($runPledgeOut -notmatch "LOCAL_PLEDGE_VECTOR_OK: pass=5 fail=0"){ Die ("SELFTEST_FAIL_RUN_LOCAL_PLEDGE_TOKEN_MISSING") }
 
-# -------------------------
-# sha256sums.txt (written last)
-# -------------------------
+$json = '{"schema":"clp.selftest.result.v1","ok":true,"root_hash":"' + $root + '","claim_id":"' + $gotClaim + '","receipt_id":"' + $gotRcpt + '","local_pledge_vectors_ok":true}'
+WriteUtf8NoBomLf (Join-Path $RcptDir "result.json") $json
+
 $files = @(
   "inputs_manifest.txt",
   "inputs_root_hash.txt",
@@ -210,6 +214,8 @@ $files = @(
   "02_hash_receipt_stderr.log",
   "03_run_vectors_stdout.log",
   "03_run_vectors_stderr.log",
+  "04_run_local_pledge_vectors_stdout.log",
+  "04_run_local_pledge_vectors_stderr.log",
   "result.json"
 )
 $lines = New-Object System.Collections.Generic.List[string]
